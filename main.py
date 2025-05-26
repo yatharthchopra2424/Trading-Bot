@@ -10,7 +10,7 @@ from google.genai import types
 
 # Page configuration
 st.set_page_config(
-    page_title="Advanced TSLA Trading Bot",
+    page_title="TSLA Trading Bot",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
