@@ -8,7 +8,6 @@ from streamlit_lightweight_charts import renderLightweightCharts
 from google import genai
 from google.genai import types
 
-# Page configuration
 st.set_page_config(
     page_title="TSLA Trading Bot",
     page_icon="📈",
@@ -16,19 +15,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Color constants
 COLOR_BULL = 'rgba(38,166,154,0.9)'  # Green
 COLOR_BEAR = 'rgba(239,83,80,0.9)'   # Red
 
-# Initialize session state for chart features
 if 'show_signals' not in st.session_state:
     st.session_state.show_signals = False
 if 'show_support_resistance' not in st.session_state:
     st.session_state.show_support_resistance = False
 if 'show_moving_averages' not in st.session_state:
     st.session_state.show_moving_averages = True
-
-# Initialize session state for chatbot
 if 'chatbot_open' not in st.session_state:
     st.session_state.chatbot_open = False
 if 'chat_messages' not in st.session_state:
@@ -47,7 +42,6 @@ class TradingChatBot:
     def setup_genai_client(self):
         """Initialize the Gemini AI client"""
         try:
-            # Use environment variable for API key security
             api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyDVjApDk-IU6xFoK60Y3P_iYRNSfowRqOs")
             self.client = genai.Client(api_key=api_key)
         except Exception as e:
@@ -58,16 +52,13 @@ class TradingChatBot:
         if self.cached_data is None:
             try:
                 self.cached_data = pd.read_csv(self.data_source)
-                # Convert datetime column to proper datetime format
                 self.cached_data['datetime'] = pd.to_datetime(self.cached_data['datetime'])
                 
-                # Data preprocessing and summary
                 self.cached_data['year'] = self.cached_data['datetime'].dt.year
                 self.cached_data['month'] = self.cached_data['datetime'].dt.month
                 self.cached_data['day'] = self.cached_data['datetime'].dt.day
                 self.cached_data['hour'] = self.cached_data['datetime'].dt.hour
                 
-                # Calculate price movements
                 self.cached_data['price_change'] = self.cached_data['close'] - self.cached_data['open']
                 self.cached_data['price_change_pct'] = (self.cached_data['price_change'] / self.cached_data['open']) * 100
                 
@@ -82,11 +73,9 @@ class TradingChatBot:
         if self.cached_data is None:
             return "No data loaded"
         
-        # Basic statistics
         total_records = len(self.cached_data)
         date_range = f"{self.cached_data['datetime'].min()} to {self.cached_data['datetime'].max()}"
         
-        # Price statistics
         price_stats = {
             'avg_price': self.cached_data['close'].mean(),
             'max_price': self.cached_data['high'].max(),
@@ -121,7 +110,6 @@ class TradingChatBot:
         
         data_summary = self.get_data_summary()
         
-        # Enhanced prompt with cached data
         enhanced_prompt = f"""
         You are a sophisticated trading bot assistant with access to cached TESLA (TSLA) financial data. 
         
@@ -178,26 +166,21 @@ def load_and_process_data():
         df = pd.read_csv('TSLA_data - Sheet1.csv', parse_dates=['datetime'])
         df = df.sort_values('datetime').reset_index(drop=True)
         
-        # Calculate technical indicators
-        # Moving Averages
         df['SMA_20'] = df['close'].rolling(window=20).mean()
         df['SMA_50'] = df['close'].rolling(window=50).mean()
         df['EMA_12'] = df['close'].ewm(span=12).mean()
         df['EMA_26'] = df['close'].ewm(span=26).mean()
         
-        # RSI
         delta = df['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         df['RSI'] = 100 - (100 / (1 + rs))
         
-        # MACD
         df['MACD'] = df['EMA_12'] - df['EMA_26']
         df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
         df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
         
-        # Bollinger Bands
         df['BB_middle'] = df['close'].rolling(window=20).mean()
         bb_std = df['close'].rolling(window=20).std()
         df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
@@ -218,23 +201,18 @@ def calculate_performance_metrics(df):
     short_signals = len(df[df['direction'] == 'SHORT'])
     total_signals = long_signals + short_signals
     
-    # Calculate basic performance metrics
     df_copy = df.copy()
     df_copy['returns'] = df_copy['close'].pct_change()
     
-    # Win rate calculation (simplified)
     signals_with_direction = df_copy[df_copy['direction'].isin(['LONG', 'SHORT'])].copy()
     if len(signals_with_direction) > 1:
-        # Calculate next period returns for each signal
         signals_with_direction['next_return'] = signals_with_direction['returns'].shift(-1)
         
-        # For LONG signals, positive returns are wins
         long_wins = len(signals_with_direction[
             (signals_with_direction['direction'] == 'LONG') & 
             (signals_with_direction['next_return'] > 0)
         ])
         
-        # For SHORT signals, negative returns are wins
         short_wins = len(signals_with_direction[
             (signals_with_direction['direction'] == 'SHORT') & 
             (signals_with_direction['next_return'] < 0)
@@ -245,7 +223,6 @@ def calculate_performance_metrics(df):
     else:
         win_rate = 0
     
-    # Calculate volatility
     volatility = df_copy['returns'].std() * np.sqrt(252) * 100 if len(df_copy['returns']) > 1 else 0
     
     return {
@@ -260,10 +237,8 @@ def prepare_chart_data(df):
     """Prepare data for lightweight charts with signals and support/resistance bands"""
     df_chart = df.copy()
     
-    # Convert datetime to Unix timestamp
     df_chart['time'] = df_chart['datetime'].astype('int64') // 10**9
     
-    # Candlestick data
     candles = []
     for _, row in df_chart.iterrows():
         candles.append({
@@ -274,7 +249,6 @@ def prepare_chart_data(df):
             'close': float(row['close'])
         })
     
-    # Moving averages
     sma20_data = []
     sma50_data = []
     for _, row in df_chart.dropna(subset=['SMA_20']).iterrows():
@@ -289,12 +263,10 @@ def prepare_chart_data(df):
             'value': float(row['SMA_50'])
         })
     
-    # Prepare signal markers
     signal_markers = []
     for _, row in df_chart.iterrows():
         if pd.notna(row.get('direction', None)) and row['direction'] in ['LONG', 'SHORT']:
             if row['direction'] == 'LONG':
-                # Green up arrow below the candle
                 signal_markers.append({
                     'time': int(row['time']),
                     'position': 'belowBar',
@@ -303,7 +275,6 @@ def prepare_chart_data(df):
                     'text': 'LONG'
                 })
             elif row['direction'] == 'SHORT':
-                # Red down arrow above the candle
                 signal_markers.append({
                     'time': int(row['time']),
                     'position': 'aboveBar',
@@ -312,7 +283,6 @@ def prepare_chart_data(df):
                     'text': 'SHORT'
                 })
         elif pd.notna(row.get('direction', None)) and row['direction'] not in ['LONG', 'SHORT']:
-            # Yellow circle for other directions
             signal_markers.append({
                 'time': int(row['time']),
                 'position': 'inBar',
@@ -320,7 +290,6 @@ def prepare_chart_data(df):
                 'shape': 'circle',
                 'text': str(row['direction'])
             })
-      # Prepare support bands - create bands between min and max values
     support_bands_lower = []
     support_bands_upper = []
     if 'Support' in df_chart.columns:
@@ -343,7 +312,6 @@ def prepare_chart_data(df):
             except:
                 continue
     
-    # Prepare resistance bands - create bands between min and max values
     resistance_bands_lower = []
     resistance_bands_upper = []
     if 'Resistance' in df_chart.columns:
@@ -370,7 +338,6 @@ def prepare_chart_data(df):
 def render_chatbot_panel():
     """Render the chatbot as a dedicated panel at the top of the page"""
     
-    # Chatbot control buttons
     col1, col2, col3, col4 = st.columns([6, 1, 1, 1])
     
     with col2:
@@ -386,9 +353,7 @@ def render_chatbot_panel():
     with col4:
         st.write(f"{'🟢 Open' if st.session_state.chatbot_open else '🔴 Closed'}")
     
-    # Only show chatbot panel if it's open
     if st.session_state.chatbot_open:
-        # Chatbot panel with modern styling
         st.markdown("""
         <div style="
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -403,7 +368,6 @@ def render_chatbot_panel():
         </div>
         """, unsafe_allow_html=True)
         
-        # Quick suggestion buttons
         st.markdown("**💡 Quick Questions:**")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -427,11 +391,9 @@ def render_chatbot_panel():
                         st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
                     st.rerun()
         
-        # Chat messages container with scroll
         chat_container = st.container()
         with chat_container:
             if st.session_state.chat_messages:
-                # Create scrollable chat area
                 st.markdown("""
                 <div style="
                     max-height: 400px;
@@ -444,7 +406,6 @@ def render_chatbot_panel():
                 ">
                 """, unsafe_allow_html=True)
                 
-                # Display chat messages
                 for i, message in enumerate(st.session_state.chat_messages):
                     if message["role"] == "user":
                         st.markdown(f"""
@@ -494,7 +455,6 @@ def render_chatbot_panel():
             else:
                 st.info("👋 Start a conversation by typing a question or clicking a suggestion button above!")
         
-        # Chat input form
         with st.form("chatbot_form", clear_on_submit=True):
             st.markdown("**Type your question:**")
             user_input = st.text_area("", placeholder="Ask about TSLA trading patterns, signals, support levels, etc...", height=80, key="chat_input")
@@ -502,13 +462,9 @@ def render_chatbot_panel():
             col1, col2 = st.columns([8, 2])
             with col2:
                 send_button = st.form_submit_button("Send 📤", use_container_width=True)
-            
-            # Process user input
             if send_button and user_input.strip():
-                # Add user message
                 st.session_state.chat_messages.append({"role": "user", "content": user_input})
                 
-                # Generate AI response
                 try:
                     with st.spinner("🤔 Analyzing TSLA data..."):
                         response = st.session_state.trading_chatbot.generate_ai_response(user_input)
@@ -522,7 +478,6 @@ def render_chatbot_panel():
 def main():
     st.title("🚀 Advanced TSLA Trading Bot")
     
-    # Custom CSS for better button styling
     st.markdown("""
     <style>
     .stButton > button {
@@ -534,36 +489,29 @@ def main():
     }
     </style>
     """, unsafe_allow_html=True)
-    
-    # Initialize chatbot
     if st.session_state.trading_chatbot is None:
         st.session_state.trading_chatbot = TradingChatBot()
         st.session_state.trading_chatbot.load_and_cache_data()
     
-    # Render chatbot panel at the top
     render_chatbot_panel()
     
     st.markdown("---")
     
-    # Load data
     df = load_and_process_data()
     if df is None:
-        return# Sidebar controls
+        return
     st.sidebar.header("📊 Trading Controls")
     
-    # Chart feature toggles in sidebar
     st.sidebar.subheader("🎛️ Chart Features")
     st.session_state.show_signals = st.sidebar.checkbox("Show Signal Arrows", value=st.session_state.show_signals)
     st.session_state.show_support_resistance = st.sidebar.checkbox("Show Support/Resistance Bands", value=st.session_state.show_support_resistance)
     st.session_state.show_moving_averages = st.sidebar.checkbox("Show Moving Averages", value=st.session_state.show_moving_averages)
     
-    # Time range selection
     time_range = st.sidebar.selectbox(
         "Select Time Range",
         ["Last 100 records", "Last 500 records", "Last 1000 records", "All data"]
     )
     
-    # Filter data based on selection
     if time_range == "Last 100 records":
         filtered_df = df.tail(100).copy()
     elif time_range == "Last 500 records":
@@ -572,7 +520,6 @@ def main():
         filtered_df = df.tail(1000).copy()
     else:
         filtered_df = df.copy()
-      # Display key metrics
     st.subheader("📊 Key Metrics")
     col1, col2, col3 = st.columns(3)
     
@@ -589,7 +536,6 @@ def main():
         avg_volume = filtered_df['volume'].mean()
         st.metric("Avg Volume", f"{avg_volume:,.0f}")
     
-    # Performance metrics
     st.subheader("📈 Trading Performance")
     metrics = calculate_performance_metrics(filtered_df)
     
@@ -605,7 +551,7 @@ def main():
         with col4:
             st.metric("Win Rate", f"{metrics['win_rate']:.1f}%")
         with col5:
-            st.metric("Volatility", f"{metrics['volatility']:.2f}%")      # Chart options - Dark theme configuration
+            st.metric("Volatility", f"{metrics['volatility']:.2f}%")     
     chartOptions = {
         "width": 1000,
         "height": 500,
@@ -633,8 +579,8 @@ def main():
         },        "crosshair": {"mode": 0},
         "timeScale": {
             "borderColor": "rgba(197, 203, 206, 0.8)",
-            "barSpacing": 16,  # Increased from 10 to 16 (60% more zoom)
-            "minBarSpacing": 13,  # Increased from 8 to 13 (60% more zoom)
+            "barSpacing": 16,  
+            "minBarSpacing": 13,  
             "timeVisible": True,
             "secondsVisible": False,
         },
@@ -646,12 +592,10 @@ def main():
             "color": 'rgba(171, 71, 188, 0.3)',
             "text": 'TSLA Bot',
         }
-    }    # Prepare chart data - candlestick, moving averages, signals, and support/resistance bands
+    }    
     candles, sma20_data, sma50_data, signal_markers, support_bands_lower, support_bands_upper, resistance_bands_lower, resistance_bands_upper = prepare_chart_data(filtered_df)
 
-    # Chart control buttons at the top
     st.markdown("### 📊 TSLA Price Chart")
-      # Chart control buttons at the top
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("🎯 Toggle Signals", help="Show/hide trading signal arrows"):
@@ -670,7 +614,7 @@ def main():
             st.session_state.show_signals = True
             st.session_state.show_support_resistance = True
             st.session_state.show_moving_averages = True
-            st.rerun()    # Series configurations - candlestick with conditional features
+            st.rerun()   
     seriesCandlestickChart = [
         {
             "type": 'Candlestick',
@@ -686,7 +630,6 @@ def main():
         }
     ]
     
-    # Add moving averages conditionally
     if st.session_state.show_moving_averages:
         if sma20_data:
             seriesCandlestickChart.append({
@@ -710,7 +653,6 @@ def main():
                 }
             })
     
-    # Add support bands conditionally (green) - using line series for upper and lower bounds
     if st.session_state.show_support_resistance:
         if support_bands_lower and support_bands_upper:
             seriesCandlestickChart.append({
@@ -719,7 +661,7 @@ def main():
                 "options": {
                     "color": 'rgba(0, 255, 0, 0.6)',
                     "lineWidth": 1,
-                    "lineStyle": 2,  # Dashed line
+                    "lineStyle": 2,  
                     "title": "Support Lower"
                 }
             })
@@ -729,12 +671,11 @@ def main():
                 "options": {
                     "color": 'rgba(0, 255, 0, 0.6)',
                     "lineWidth": 1,
-                    "lineStyle": 2,  # Dashed line
+                    "lineStyle": 2,  
                     "title": "Support Upper"
                 }
             })
         
-        # Add resistance bands (red) - using line series for upper and lower bounds
         if resistance_bands_lower and resistance_bands_upper:
             seriesCandlestickChart.append({
                 "type": 'Line',
@@ -742,7 +683,7 @@ def main():
                 "options": {
                     "color": 'rgba(255, 0, 0, 0.6)',
                     "lineWidth": 1,
-                    "lineStyle": 2,  # Dashed line
+                    "lineStyle": 2, 
                     "title": "Resistance Lower"
                 }
             })
@@ -752,10 +693,10 @@ def main():
                 "options": {
                     "color": 'rgba(255, 0, 0, 0.6)',
                     "lineWidth": 1,
-                    "lineStyle": 2,  # Dashed line
+                    "lineStyle": 2, 
                     "title": "Resistance Upper"
                 }
-            })    # Display current chart features status
+            })    
     feature_status = []
     if st.session_state.show_signals:
         feature_status.append("🎯 Signal Arrows")
@@ -769,16 +710,12 @@ def main():
     else:
         st.warning("**All features disabled** - Showing candlesticks only")
 
-    # Render the dark theme candlestick chart with conditional features
     charts_to_render = [
         {"chart": chartOptions, "series": seriesCandlestickChart}
     ]
     renderLightweightCharts(charts_to_render, 'priceAndVolume')
     
-    # Trading signals analysis
     st.subheader("🎯 Trading Signals Analysis")
-    
-    # Signal distribution
     col1, col2 = st.columns(2)
     
     with col1:
@@ -803,7 +740,6 @@ def main():
             st.dataframe(display_signals, use_container_width=True, hide_index=True)
         else:
             st.info("No recent signals found")
-      # Technical analysis summary
     st.subheader("🔍 Technical Analysis Summary")
     
     latest_data = filtered_df.iloc[-1]
@@ -826,7 +762,6 @@ def main():
             current_price = latest_data['close']
             st.write(f"Current Price: ${current_price:.2f}")
             
-            # Price trend based on moving averages
             if not pd.isna(latest_data['SMA_20']) and not pd.isna(latest_data['SMA_50']):
                 if latest_data['SMA_20'] > latest_data['SMA_50']:
                     trend = "🟢 Uptrend"
@@ -834,7 +769,6 @@ def main():
                     trend = "🔴 Downtrend"
                 st.write(f"Trend: {trend}")
     
-    # Support and Resistance levels
     st.subheader("📏 Support & Resistance Levels")
     
     if 'Support' in filtered_df.columns and 'Resistance' in filtered_df.columns:
@@ -862,7 +796,6 @@ def main():
             except:
                 st.write("No resistance data available")
     
-    # Display raw data option
     if st.sidebar.checkbox("Show Raw Data"):
         st.subheader("📋 Raw Data")
         st.dataframe(filtered_df.tail(20), use_container_width=True)
