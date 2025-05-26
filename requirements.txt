@@ -1,0 +1,7 @@
+streamlit
+pandas
+plotly
+numpy
+streamlit-lightweight-charts
+datetime
+google-genai
